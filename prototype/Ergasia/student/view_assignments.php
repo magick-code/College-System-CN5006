@@ -65,7 +65,6 @@ $result=$stmt-> get_result();
             </td>
             <td>
                 <?php echo date("d/m/Y", $due_date);?>
-                <?php if($is_overdue) echo "<br><small>Έχει λήξει..";?>
             </td>
             <td>
                 <?php if($is_submitted): ?>
@@ -97,4 +96,5 @@ $result=$stmt-> get_result();
 <?php include "../footer.php"; 
 $stmt-> close();
 $conn-> close();
+
 ?>
