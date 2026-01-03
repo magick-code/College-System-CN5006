@@ -13,7 +13,7 @@ $success ="";
 $error= "";
 
 //δημιουργία εργασίων
-if($_SERVER["REQUEST_METHOD"]=="POST"){
+if($_SERVER["REQUEST_METHOD"]==="POST"){
     //υα δεδομένα από τη φόρμα αποθηκεύονται σε αυτές τις μεταβλήτες
     $course_id = $_POST["course_id"];
     $title = trim($_POST["title"]);
@@ -36,7 +36,8 @@ if($_SERVER["REQUEST_METHOD"]=="POST"){
             $stmt= $conn-> prepare($sql);
             $stmt-> bind_param("isss", $course_id, $title, $description, $due_date);
             if($stmt-> execute()){
-                $success="Η εργασία αναρτήθηκε με επιτυχία!";
+                //το μήνυμα επιτυχίας αποθηκεύεται σε μεταβλητή session
+                $_SESSION["success"]="Η εργασία αναρτήθηκε με επιτυχία!";
                 //αποτρέπει την φόρμα από το να ξαναστάλει όταν κάνει ο χρήστης refresh την σελίδα
                 header("Location: ".$_SERVER["PHP_SELF"]);
                 exit();
@@ -62,13 +63,21 @@ $result_courses= $stmt-> get_result();
 <?php include "../header2.php";?>
 <h1>Ανάρτηση Εργασίας</h1>
 
-<?php if($success):?>
-<div style="color:green;"><?php echo $success;?></div>
-<?php endif; ?>
+<?php
+if(isset($_SESSION["success"])):?>
+<div style="color:green">
+<?php echo $_SESSION["success"];
+//διαγράφεται το μήνυμα από το session επείδη χρειάζεται μόνο μια φορά (για εμφάνιση)
+unset($_SESSION["success"]); ?>
+</div>
+<?php endif;?>
 
 <?php if($error):?>
-<div style="color:red;"><?php echo $error;?></div>
-<?php endif; ?>
+<div style="color:red">
+<?php echo $error?>
+</div>
+<?php endif;?>
+
 
 <form method="POST">
 <label>Μάθημα:</label><br>
