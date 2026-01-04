@@ -8,94 +8,96 @@ require_once "../connect_to_db.php";
 
 $success = "";
 $error = "";
+
 $student_id = $_SESSION["user_id"];
   
-if (isset($_SESSION['flash_success'])) {
-    $success = $_SESSION['flash_success']; 
-    unset($_SESSION['flash_success']);
+//ελέγχει αν υπάρχει μήνυμα επιτυχίας
+if (isset($_SESSION["success"])) {
+    $success = $_SESSION["success"]; 
+    //διαγράφει το μήνυμα μετά την εμφάνιση
+    unset($_SESSION["success"]);
 }
+
 if($_SERVER["REQUEST_METHOD"]==="POST"){
     //ο φάκελος στον οποίο θα αποθηκεύονται τα αρχεία
     $target_dir = "../uploads/";
     //ελέγχει αν επιλέχθηκε εργασία
-    if(!isset($_POST["assignment_id"])|| empty($_POST["assignment_id"])){
+    if(empty($_POST["assignment_id"])){
         $error = "Επιλέξτε εργασία.";
     }
     //ελέγχει αν επιλέχθηκε αρχείο
-    elseif(!isset($_FILES["file_to_upload"])|| empty($_FILES["file_to_upload"]["name"])){
+    elseif(empty($_FILES["file_to_upload"]["name"])){
         $error = "Επιλέξτε αρχείο.";
     }else{
         $assignment_id = $_POST["assignment_id"];
-        $original_name= basename($_FILES["file_to_upload"]["name"]);
-        
-        $file_temp_name = $_FILES["file_to_upload"]["tmp_name"];
+        $file = $_FILES["file_to_upload"];
+
+        //παίρνει το αρχικό όνομα του αρχείου
+        $original_name = basename($file["name"]);
+        //παίρνει την κατάληξη του αρχείου
         $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
-                
+        $file_temp_name = $file["tmp_name"];
+        //ελέγχει το MIME τύπο του αρχείου
+        //ώστε να ανιχνεύει από αρχεία με λάθος κατάληξη
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file_temp_name);
+        finfo_close($finfo);        
+
         //έλεγχει την κατάληξη του αρχείου
-        $allowed_extensions = ["pdf","doc","docx","txt"];  
-
-        if(!in_array($extension, $allowed_extensions)){ 
-            $error = "Λάθος τύπος αρχείου.<br>Επιλέξτε αρχείο με κατάληξη .pdf, .doc, .docx ή .txt";
-        }else{
-            //ελέγχει το MIME type
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            $mime = finfo_file($finfo, $file_temp_name); 
-            finfo_close($finfo);
-
-            $allowed_mime_types = ["application/pdf","application/msword",
+        $allowed_extensions = ["pdf","doc","docx","txt"];
+        //οι επιτρεπόμενοι MIME τύποι
+        $allowed_mime_types = ["application/pdf","application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "text/plain"];
 
-            if(!in_array($mime, $allowed_mime_types)){
-                $error = "Λάθος αρχείο.";
-            }else{
-                //επιλέγει το όνομα του φοιτητή και της εργασίας 
-                $sql = "SELECT Students.username, Assignments.title
-                    FROM Students, Assignments
-                    WHERE Students.id = ? AND Assignments.assignment_id=?";
+        if(!in_array($extension, $allowed_extensions)|| !in_array($mime, $allowed_mime_types)){ 
+            $error = "Λάθος τύπος αρχείου.<br>Επιλέξτε αρχείο με κατάληξη .pdf, .doc, .docx ή .txt";
+        }else{
+            //επιλέγει το όνομα του φοιτητή και της εργασίας 
+            $sql = "SELECT Students.username, Assignments.title
+                FROM Students
+                JOIN Assignments ON Assignments.assignment_id = ?
+                WHERE Students.id = ?"; 
+            $stmt_get_names = $conn->prepare($sql);
+            $stmt_get_names-> bind_param("ii", $assignment_id, $student_id);
+            $stmt_get_names-> execute();
+            $result_name = $stmt_get_names-> get_result();
                 
-                $stmt_get_names = $conn->prepare($sql);
-                $stmt_get_names-> bind_param("ii", $student_id, $assignment_id);
-                $stmt_get_names-> execute();
-                $result_name = $stmt_get_names-> get_result();
-                
-                if($result_name->num_rows>0){
-                    $data = $result_name-> fetch_assoc();
-                    //καθαρίζει τα ονόματα από κενά και περίεργους χαρακτήρες
-                    $student_name = preg_replace("/[^a-zA-Z0-9α-ωΑ-Ω]/u", "_", $data["username"]);
-                    $course_title = preg_replace("/[^a-zA-Z0-9α-ωΑ-Ω]/u", "_", $data["title"]);
-                    
-                    //δίνει το όνομα στο αρχείο που θα αποθηκεύτει στο /uploads/
-                    $file_name = time() . "_" . $student_name. "_". $course_title . ".". $extension;
-                    $target_file = $target_dir . $file_name;
-                    if(empty($error) && move_uploaded_file($file_temp_name, $target_file)){
-                        $sql="INSERT INTO Submissions(assignment_id, student_id, file_path, submission_date)
-                            VALUES (?,?,?, NOW())  
-                            ON DUPLICATE KEY UPDATE  
-                            file_path = VALUES(file_path),
-                            submission_date= NOW()"; 
-                        $stmt_insert_submission = $conn->prepare($sql);
-                        $stmt_insert_submission->bind_param("iis", $assignment_id, $student_id, $target_file);
+            if($row = $result_name-> fetch_assoc()){
+                //καθαρίζει τα ονόματα από κενά και περίεργους χαρακτήρες
+                $student_name = preg_replace("/[^a-zA-Z0-9α-ωΑ-Ω]/u", "_", $row["username"]);
+                $course_title = preg_replace("/[^a-zA-Z0-9α-ωΑ-Ω]/u", "_", $row["title"]);
+                //μεταονομάζει το αρχείο με μοναδικό όνομα
+                //το ονομά είναι timestamp_ΌνομαΦοιτητή_ΤίτλοςΕργασίας.κατάληξη 
+                $file_name = time() . "_" . $student_name. "_". $course_title . ".". $extension;
+                $target_file = $target_dir . $file_name;
+                //προσπαθεί να μετακινήσει το αρχείο από το temp φάκελο στο uploads
+                if(move_uploaded_file($file["tmp_name"], $target_file)){
+                    $sql="INSERT INTO Submissions(assignment_id, student_id, file_path, submission_date)
+                        VALUES (?,?,?, NOW())  
+                        ON DUPLICATE KEY UPDATE file_path = VALUES(file_path),
+                        submission_date= NOW()"; 
+                    $stmt_insert_submission = $conn->prepare($sql);
+                    $stmt_insert_submission->bind_param("iis", $assignment_id, $student_id, $target_file);
                         
-                        if($stmt_insert_submission->execute()){
-                            $_SESSION['flash_success'] = "Η εργασία υποβλήθηκε με επιτυχία!";
-                            header("Location: ".$_SERVER["PHP_SELF"]);
-                            exit();
-                        }else{
-                            $error ="Error: ".$conn-> error;
-                        }
-                        $stmt_insert_submission-> close();
+                    if($stmt_insert_submission->execute()){
+                        $_SESSION["success"] = "Η εργασία υποβλήθηκε με επιτυχία!";
+                        header("Location: ".$_SERVER["PHP_SELF"]);
+                        exit();
                     }else{
-                        $error="Σφάλμα κατά την αποθήκευση στον φάκελο uploads.";
+                        $error ="Σφάλμα βάσης δεδομένων: ".$conn-> error;
+                    }
+                    $stmt_insert_submission-> close();
+                }else{
+                    $error="Σφάλμα κατά την αποθήκευση στον φάκελο uploads.";
                     }       
                 }else{
                     $error = "Δεν βρέθηκαν στοιχεία για τον φοιτητή ή για την εργασία.";
                 }
                 $stmt_get_names-> close();
-            } 
         } 
     } 
-}
+} 
 
 //επιλέγει τις εργασίες των μαθημάτων που είναι εγγράμμενος ο φοιτητής
 $sql = "SELECT Assignments.assignment_id, Assignments.title, Courses.title AS course_name
