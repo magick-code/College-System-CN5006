@@ -4,7 +4,7 @@ $usernameError = $emailError = $passwordError = $roleError = $regcodeError = $re
 $username = $email = $password = $role = $regcode = "";
 $registrationSuccessful = "";
 
-if($_SERVER["REQUEST_METHOD"]=="POST"){
+if($_SERVER["REQUEST_METHOD"]==="POST"){
 
 
     //καθαρίζει τις εισόδους
@@ -60,21 +60,24 @@ if($_SERVER["REQUEST_METHOD"]=="POST"){
 
             require_once "connect_to_db.php";
 
+            try{
+                //τα prepared statements είναι πιο ασφαλή ενάντια SQL injections
+                $sql = "INSERT INTO $table (username,email,password) VALUES (?,?,?)";
+                $stmt = $conn->prepare($sql);
+                $stmt-> bind_param("sss",$username, $email, $password);
 
-            //τα prepared statements είναι πιο ασφαλή ενάντια SQL injections
-            $sql = "INSERT INTO $table (username,email,password) VALUES (?,?,?)";
-            $stmt = $conn->prepare($sql);
-
-
-            $stmt-> bind_param("sss",$username, $email, $password);
-
-            if ($stmt->execute()) {
-                $registrationSuccessful =  "Εγγραφή επιτυχής";
-            } else{
-                $registrationError= "Σφάλμα κατά την εγγραφή";
-            }
-
-            $stmt-> close();
+                if ($stmt->execute()) {
+                    $registrationSuccessful =  "Εγγραφή επιτυχής";
+                } 
+                $stmt-> close();
+            }catch(mysqli_sql_exception $e){
+                //έλεγχει αν υπάρχει duplicate entry στο email
+                if($stmt-> errno===1062){
+                    $emailError = "Αυτό το email χρησιμοποιείται ήδη";
+                }else{
+                    $registrationError= "Σφάλμα κατά την εγγραφή";
+                }
+            } 
             $conn-> close();
         }
     }
