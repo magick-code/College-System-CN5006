@@ -36,3 +36,6 @@ http://localhost/phpmyadmin
 http://localhost/prototype/Ergasia/index.php
 
 Τώρα μπορείτε να αρχίστε το πρόγραμμα κανονικά.
+
+
+Ο κωδικός για την εγγραφή του καθηγητή είναι PROF2025 και του φοιτητή STUD2025.
